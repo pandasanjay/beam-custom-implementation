@@ -1,0 +1,4 @@
+apache-beam[gcp]
+google-cloud-bigquery-storage
+google-api-core
+pyarrow
