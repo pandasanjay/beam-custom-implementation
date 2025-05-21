@@ -1,18 +1,23 @@
-\
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.transforms.enrichment import Enrichment
-from apache_beam.transforms.enrichment_handlers.bigquery_enrichment_handlers_storage_read_api import BigQueryStorageEnrichmentHandler
-
+from custom_beam.transforms.enrichment_handlers.bigquery_enrichment_handlers_storage_read_api import BigQueryStorageEnrichmentHandler
+ 
 # --- Configuration ---
 # Replace with your Google Cloud project ID that has BigQuery API enabled
-# and permissions to read the public dataset.
+# and permissions to read the public dataset. This project will be used for billing
+# and API quotas for the BigQuery Storage Read API calls.
 # For public datasets, the billing project is usually your own project.
-GCP_PROJECT_ID = "your-gcp-project-id"  # <--- IMPORTANT: REPLACE THIS!
+GCP_PROJECT_ID_FOR_BILLING = "your-gcp-project-id"  # <--- IMPORTANT: REPLACE THIS!
 PUBLIC_BQ_TABLE = "bigquery-public-data.usa_names.usa_1910_current"
 
 def run_pipeline():
     options = PipelineOptions()
+    # If your GCP project for billing is not set via environment variable (GOOGLE_CLOUD_PROJECT)
+    # or gcloud config, you might need to set it explicitly in PipelineOptions for the runner:
+    # from apache_beam.options.pipeline_options import GoogleCloudOptions
+    # gcp_options = options.view_as(GoogleCloudOptions)
+    # gcp_options.project = GCP_PROJECT_ID_FOR_BILLING
 
     # --- 1. Create main input PCollection ---
     main_input_data = [
@@ -32,7 +37,7 @@ def run_pipeline():
     # Here, we'll let it be, and the Enrichment transform handles merging.
 
     bq_enrichment_handler = BigQueryStorageEnrichmentHandler(
-        project=GCP_PROJECT_ID,
+        project=GCP_PROJECT_ID_FOR_BILLING,
         table_name=PUBLIC_BQ_TABLE,
         fields=["name"],  # Field(s) from main input to use for the JOIN condition
                           # This will be used in the WHERE clause: BQ_TABLE.name = main_input_data.name
@@ -67,13 +72,15 @@ if __name__ == "__main__":
     # or provide service account credentials for this to run.
     # e.g., by running `gcloud auth application-default login`
     # or setting the GOOGLE_APPLICATION_CREDENTIALS environment variable.
-    print(f"Running BigQuery Enrichment pipeline. Ensure GCP_PROJECT_ID is set correctly.")
-    print(f"Using GCP Project: {GCP_PROJECT_ID}")
+    print(f"Running BigQuery Enrichment pipeline using BigQueryStorageEnrichmentHandler.")
+    print(f"Using GCP Project for Billing/Quotas: {GCP_PROJECT_ID_FOR_BILLING}")
     print(f"Enriching against BQ Table: {PUBLIC_BQ_TABLE}")
+    print("Ensure you have authenticated with GCP (e.g., `gcloud auth application-default login`)")
+    print("and the BigQuery API is enabled in the project used for billing.")
 
-    if GCP_PROJECT_ID == "your-gcp-project-id":
-        print("\\nWARNING: GCP_PROJECT_ID is not set. Please replace 'your-gcp-project-id' in the script.")
-        print("The pipeline will likely fail without a valid project ID for billing and API access.\\n")
+    if GCP_PROJECT_ID_FOR_BILLING == "your-gcp-project-id":
+        print("\\nWARNING: GCP_PROJECT_ID_FOR_BILLING is not set. Please replace 'your-gcp-project-id' in the script.")
+        print("The pipeline will likely fail or use an unintended project for BigQuery API calls.\\n")
 
     run_pipeline()
 

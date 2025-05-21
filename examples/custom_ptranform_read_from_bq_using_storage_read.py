@@ -6,16 +6,22 @@ from apache_beam.pvalue import Row as BeamRow
 # Adjust the import path based on your project structure
 # Assuming the script is run from the root of the beam-custom-implementation directory
 # or that the apache_beam module within your project is in the PYTHONPATH
-from apache_beam.transforms.bigquery_storage_read_api import BatchedParallelBigQueryEnrichmentTransform
+from custom_beam.transforms.bigquery_storage_read_api import BatchedParallelBigQueryEnrichmentTransform
+
+# --- Configuration ---
+# Replace with your Google Cloud project ID that will be used for billing
+# and API quotas, even when accessing public datasets.
+GCP_PROJECT_ID_FOR_BILLING = "your-gcp-project-for-billing"  # <--- IMPORTANT: REPLACE THIS!
 
 def run_pipeline():
     """Runs the test pipeline."""
 
     pipeline_options = PipelineOptions()
-    # You might need to set --project option if it's not implicitly available
-    # For public data, project for billing might still be needed for API calls.
-    # pipeline_options.view_as(GoogleCloudOptions).project = 'your-gcp-project-for-billing'
-
+    # If your GCP project for billing is not set via environment variable (GOOGLE_CLOUD_PROJECT)
+    # or gcloud config, you might need to set it explicitly in PipelineOptions:
+    # from apache_beam.options.pipeline_options import GoogleCloudOptions
+    # gcp_options = pipeline_options.view_as(GoogleCloudOptions)
+    # gcp_options.project = GCP_PROJECT_ID_FOR_BILLING
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         # Sample input data - list of dictionaries
@@ -47,7 +53,7 @@ def run_pipeline():
 
         # Configure and apply the enrichment transform
         enriched_data = input_data | "EnrichWithBigQueryData" >> BatchedParallelBigQueryEnrichmentTransform(
-            project="bigquery-public-data",  # Project ID for the public table
+            project=GCP_PROJECT_ID_FOR_BILLING,  # Project ID for API usage billing/quotas
             table_name="bigquery-public-data.usa_names.usa_1910_current", # Public table
             join_key_field="name",  # Field in input elements to join on
             fields=["name"],  # Fields from input elements to use in row_restriction_template
@@ -75,21 +81,28 @@ if __name__ == '__main__':
     # Example:
     # options = PipelineOptions(
     #     flags=None, # Pass command-line arguments if any
-    #     project='your-gcp-project-for-billing', # Replace with your GCP project ID
+    #     project=GCP_PROJECT_ID_FOR_BILLING, # Replace with your GCP project ID
     #     # runner='DataflowRunner', # Uncomment to run on Dataflow
     #     # temp_location='gs://your-gcs-bucket/temp/', # Required for Dataflow
     #     # region='your-gcp-region' # Required for Dataflow
     # )
-    # run_pipeline(options)
+    # run_pipeline(options) # Pass options here
     
     # For local testing with DirectRunner, explicit project for runner might not be needed
     # if ADC (Application Default Credentials) are set up correctly.
-    # However, the BigQuery Storage Read API calls themselves might still need a project
+    # However, the BigQuery Storage Read API calls themselves will use GCP_PROJECT_ID_FOR_BILLING
     # for quota and billing, even for public datasets. This is often handled by ADC
     # or explicitly setting GOOGLE_CLOUD_PROJECT environment variable.
 
-    print("Starting Beam pipeline to test BigQuery Enrichment Transform...")
-    print("Ensure you have authenticated with GCP and the necessary APIs are enabled.")
+    print("Starting Beam pipeline to test BatchedParallelBigQueryEnrichmentTransform...")
+    print(f"Using GCP Project for Billing/Quotas: {GCP_PROJECT_ID_FOR_BILLING}")
+    print("Ensure you have authenticated with GCP (e.g., `gcloud auth application-default login`)")
+    print("and the BigQuery API is enabled in the project used for billing.")
+    
+    if GCP_PROJECT_ID_FOR_BILLING == "your-gcp-project-for-billing":
+        print("\nWARNING: GCP_PROJECT_ID_FOR_BILLING is not set. Please replace 'your-gcp-project-for-billing' in the script.")
+        print("The pipeline will likely fail or use an unintended project for BigQuery API calls.\n")
+
     print("Output will show enriched rows (or original rows if no BQ match).")
     print("--------------------------------------------------------------------")
     run_pipeline()
